@@ -3,7 +3,6 @@ pipeline {
 
   options {
     timestamps()
-    ansiColor('xterm')
     timeout(time: 15, unit: 'MINUTES')
   }
 
@@ -14,6 +13,7 @@ pipeline {
   }
 
   stages {
+
     stage('Checkout') {
       steps {
         checkout scm
@@ -21,10 +21,8 @@ pipeline {
           set -e
           echo "Workspace:"
           pwd
-          echo "Repo files:"
+          echo "Listing repo files:"
           ls -la
-          echo "Terraform files (first 100):"
-          find . -maxdepth 4 -type f -name "*.tf" | sort | head -100
         '''
       }
     }
@@ -33,28 +31,17 @@ pipeline {
       steps {
         sh '''
           set -e
-          test -d "${TF_DIR}" || (echo "ERROR: ${TF_DIR} folder not found" && exit 1)
+          test -d "${TF_DIR}" || (echo "ERROR: ${TF_DIR} not found" && exit 1)
+
           count=$(find "${TF_DIR}" -maxdepth 1 -type f -name "*.tf" | wc -l)
           if [ "$count" -eq 0 ]; then
-            echo "ERROR: No .tf files found in ${TF_DIR}"
-            echo "Contents of ${TF_DIR}:"
-            ls -la "${TF_DIR}" || true
+            echo "ERROR: No .tf files in ${TF_DIR}"
+            ls -la "${TF_DIR}"
             exit 1
           fi
-          echo "OK: Found ${count} terraform files in ${TF_DIR}"
-        '''
-      }
-    }
 
-    stage('Terraform Fmt') {
-      steps {
-        dir("${TF_DIR}") {
-          sh '''
-            set +e
-            terraform fmt -recursive -no-color
-            exit 0
-          '''
-        }
+          echo "Found ${count} terraform files"
+        '''
       }
     }
 
@@ -85,7 +72,10 @@ pipeline {
         dir("${TF_DIR}") {
           sh '''
             set -e
-            terraform plan -no-color -lock-timeout=60s -var="key_name=terraform"
+            terraform plan \
+              -no-color \
+              -lock-timeout=60s \
+              -var="key_name=terraform"
           '''
         }
       }
@@ -94,7 +84,7 @@ pipeline {
 
   post {
     always {
-      sh 'echo "Build finished with status: ${BUILD_STATUS:-UNKNOWN}"'
+      echo "Pipeline finished"
     }
   }
 }
